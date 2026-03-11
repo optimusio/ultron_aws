@@ -1,53 +1,185 @@
-# Ultron
+# Ultron Lightweight Agent
 
-Ultron is a lightweight template for building Python-based services or command-line applications. This repository intentionally starts with a minimal structure so that you can grow it into whatever you need. Below you'll find documentation on how to get started developing, running locally, and deploying your application.
+A minimal, self-contained Python AI agent inspired by [Ultron Agent 3.0](https://github.com/dqikfox/ultron_agent). It strips the full platform down to its essential core — an LLM brain, a two-tier memory system, a small set of built-in tools, and a REST API — so it runs on any machine with Python 3.11+ and no GPU required.
 
-## What’s Included
+## Architecture
 
-This repository includes the following components out of the box:
+```
+ultron_aws/
+├── agent/
+│   ├── core.py        ← LightweightAgent (ties everything together)
+│   ├── memory.py      ← Short-term (deque) + long-term (JSON) memory
+│   ├── brain.py       ← LLM integration: Ollama or OpenAI-compatible
+│   └── tools/
+│       ├── base.py        ← BaseTool abstract class
+│       ├── calculator.py  ← Safe arithmetic evaluator (no eval())
+│       ├── system_info.py ← CPU / memory / disk metrics (psutil)
+│       └── web_search.py  ← DuckDuckGo Instant Answer search
+├── api/
+│   └── server.py      ← FastAPI: /health, /api/chat, /v1/chat/completions
+├── tests/             ← pytest test suite
+├── main.py            ← CLI and API entry point
+└── requirements.txt   ← Minimal dependencies (~10 packages)
+```
 
-- **`main.py`** – A simple entry point script that prints a greeting. Replace this with your own application code.
-- **`requirements.txt`** – A list of Python dependencies. Add any packages your project requires here so that they’re installed automatically when you build or deploy.
-- **`deployment/`** – Deployment tooling including a Dockerfile and a README with build/run instructions. Use this folder if you wish to containerise your application.
-- **`.gitignore`** – Standard git ignore rules for Python to keep compiled files and caches out of version control.
+## What's included vs the full Ultron Agent
 
-## Getting Started
+| Feature | Full Ultron Agent | Lightweight |
+|---|---|---|
+| LLM backend (Ollama / OpenAI) | ✅ | ✅ |
+| Short-term + long-term memory | ✅ | ✅ |
+| REST API (OpenAI-compatible) | ✅ | ✅ |
+| Built-in tools | 15+ | 3 (calculator, system_info, web_search) |
+| GUI / voice / vision | ✅ | ❌ |
+| PyTorch / Transformers | ✅ | ❌ |
+| LangChain / LangFlow | ✅ | ❌ |
+| AWS Bedrock / Lambda | ✅ | ❌ |
+| Dependencies | 50+ packages | ~10 packages |
+| Min RAM | ~4 GB | < 512 MB |
 
-1. **Install Dependencies**
+## Quick Start
 
-   Create a virtual environment and install the Python packages listed in `requirements.txt`:
+### 1. Install Dependencies
 
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
+```bash
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-2. **Run the Application**
+### 2. Configure
 
-   Execute the entry point script:
+```bash
+cp .env.example .env
+# Edit .env and set ULTRON_LLM_BACKEND, model names, API keys, etc.
+```
 
-   ```bash
-   python main.py
-   ```
+### 3. Start Ollama (recommended backend)
 
-   You should see the message `Hello from Ultron!` printed to the console. You can modify `main.py` to perform whatever functionality your application requires.
+```bash
+# Install: https://ollama.ai/download
+ollama serve
+ollama pull llama3.2:latest   # or any other model
+```
 
-3. **Add Your Code**
+### 4. Run
 
-   Replace the contents of `main.py` with your own logic. Add new modules and packages as necessary, and don’t forget to update `requirements.txt` when adding third‑party dependencies.
+**Interactive CLI:**
+```bash
+python main.py
+# or explicitly:
+python main.py --mode cli
+```
 
-## Development Tips
+**REST API server (port 8000):**
+```bash
+python main.py --mode api
+```
 
-- **Use virtual environments** to isolate dependencies.
-- **Write unit tests** and consider integrating a continuous integration (CI) workflow (e.g. GitHub Actions) to automatically run tests when you push changes.
-- **Document your code** and usage patterns in this README so that others can understand your project quickly.
-- **Keep your deployment files up to date.** If you add dependencies or change the entry point, make sure `Dockerfile` and the deployment instructions reflect those changes.
+## CLI Usage
 
-## Docker Deployment
+```
+You: /help          → list commands
+You: /tools         → list available tools
+You: /status        → show agent + LLM status
+You: /memory        → show conversation context
+You: /clear         → clear short-term memory
+You: /remember X    → store X in long-term memory
+You: /recall Q      → search long-term memory for Q
+You: What is 12 * 7?   → regular chat (uses LLM)
+```
 
-If you would like to run your application inside a Docker container, follow the instructions in `deployment/README.md`. The provided `Dockerfile` will install dependencies from `requirements.txt` and run `main.py` by default. After modifying `main.py` or `requirements.txt`, rebuild the Docker image to ensure your changes are reflected in the container.
+## API Endpoints
+
+Once the server is running at `http://localhost:8000`:
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Health check |
+| `/api/chat` | POST | Simple chat: `{"message": "..."}` |
+| `/v1/chat/completions` | POST | OpenAI-compatible endpoint |
+
+### Example – simple chat
+
+```bash
+curl -s http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "/status"}' | python -m json.tool
+```
+
+### Example – OpenAI-compatible
+
+```bash
+curl -s http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "ultron-lightweight",
+    "messages": [{"role": "user", "content": "What is 2 ** 10?"}]
+  }' | python -m json.tool
+```
+
+Because the endpoint is OpenAI-compatible, you can point tools like
+**Continue.dev** or **LangChain** at `http://localhost:8000` directly.
+
+## Configuration Reference
+
+All settings can be placed in a `.env` file (see `.env.example`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `ULTRON_LLM_BACKEND` | `ollama` | `ollama` or `openai` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `llama3.2:latest` | Model to use with Ollama |
+| `OPENAI_API_KEY` | *(empty)* | OpenAI API key |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model name |
+| `OPENAI_BASE_URL` | `https://api.openai.com` | Override for LM Studio / Groq / etc. |
+| `MEMORY_SHORT_TERM_LIMIT` | `20` | Max conversation turns in short-term memory |
+| `MEMORY_LONG_TERM_FILE` | `long_term_memory.json` | Path to long-term memory file |
+| `API_HOST` | `0.0.0.0` | API server bind host |
+| `API_PORT` | `8000` | API server port |
+| `LOG_LEVEL` | `INFO` | Logging verbosity |
+
+## Adding Custom Tools
+
+Subclass `BaseTool` and register it with the agent:
+
+```python
+from agent.tools.base import BaseTool
+from agent.core import LightweightAgent
+
+class GreetTool(BaseTool):
+    name = "greet"
+    description = "Greet someone by name. Usage: greet name='Alice'"
+
+    def run(self, name: str = "world", **kwargs) -> str:
+        return f"Hello, {name}!"
+
+agent = LightweightAgent()
+agent.register_tool(GreetTool())
+print(agent.chat("/tools"))   # 'greet' now appears in the list
+```
+
+## Running Tests
+
+```bash
+pytest tests/ -v
+```
+
+## Docker
+
+```bash
+# Build
+docker build -t ultron-lightweight -f deployment/Dockerfile .
+
+# Run API server
+docker run -p 8000:8000 \
+  -e ULTRON_LLM_BACKEND=ollama \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  ultron-lightweight
+```
+
+See `deployment/README.md` for full Docker instructions.
 
 ## Contributing
 
-Pull requests are welcome! If you find issues or have suggestions for improvements, feel free to open an issue or submit a pull request.
+Pull requests are welcome! If you find issues or have suggestions, open an issue or submit a PR.
