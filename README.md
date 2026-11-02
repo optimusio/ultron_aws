@@ -1,6 +1,6 @@
 # Ultron Lightweight Agent
 
-A minimal, self-contained Python AI agent inspired by [Ultron Agent 3.0](https://github.com/dqikfox/ultron_agent). It strips the full platform down to its essential core — an LLM brain, a two-tier memory system, a small set of built-in tools, and a REST API — so it runs on any machine with Python 3.11+ and no GPU required.
+A minimal, self-contained Python AI agent inspired by [Ultron Agent 3.0](https://github.com/optimusio/ultron_agent). It strips the full platform down to its essential core — an LLM brain, a two-tier memory system, a small set of built-in tools, and a REST API — so it runs on any machine with Python 3.11+ and no GPU required.
 
 ## Architecture
 
